@@ -1,0 +1,63 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# ---- Virtual Environment ----
+venv/
+env/
+ENV/
+.venv/
+
+# ---- Environment Variables ----
+.env
+.env.* 
+
+# ---- OS Files ----
+.DS_Store
+Thumbs.db
+
+# ---- Editor Files ----
+.vscode/
+.idea/
+
+# ---- Logs ----
+*.log
+logs/
+app.log
+
+# ---- Bytecode ----
+*.pyc
+
+# ---- Cache ----
+.cache/
+pip-cache/
+tmp/
+
+# ---- Uvicorn reload files ----
+*.reload
+*.pid
+
+# ---- pytest ----
+.pytest_cache/
+.coverage*
+htmlcov/
+
+# ---- Migrations ----
+alembic/versions/*
+!alembic/env.py
+!alembic/script.py.mako
+
+# ---- SQLite (if any) ----
+*.sqlite3
+*.db
+
+# ---- Docker (if used later) ----
+docker-data/
+*.dockerfile
+
+# ---- Node (if frontend comes later) ----
+node_modules/
+dist/
