@@ -28,6 +28,9 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     future=True,
+    pool_pre_ping=True,              # ✔ Detects dropped connections
+    pool_recycle=180,                # ✔ Refresh every 3 minutes
+    pool_timeout=30,                 # ✔ Avoid long waits
     connect_args={"ssl": ssl_ctx},
 )
 

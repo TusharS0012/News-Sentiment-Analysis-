@@ -1,8 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core import db
 from app.models.news import News
 from sqlalchemy.future import select
 from datetime import datetime
 from datetime import timezone
+from datetime import datetime, timezone
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.models.news import News
+
 class NewsService:
 
     @staticmethod
@@ -12,7 +17,8 @@ class NewsService:
             url=payload.get("url"),
             title=payload.get("title"),
             content=payload.get("content"),
-            published_at=payload.get("published_at")
+            published_at=payload.get("published_at"),
+            sector_id=0  # default sector_id
         )
         db.add(news)
         await db.commit()
@@ -26,13 +32,26 @@ class NewsService:
         return res.scalars().all()
 
     @staticmethod
-    async def update_sentiment(db: AsyncSession, news_id: int, score: float, label: str):
+
+    @staticmethod
+    async def update_sentiment(
+        db: AsyncSession,
+        news_id: int,
+        score: float,
+        label: str,
+        sector_id: int | None = None
+):
         q = await db.get(News, news_id)
         if q is None:
             return None
+
         q.sentiment_score = score # type: ignore
         q.sentiment_label = label # type: ignore
         q.processed_at = datetime.now(timezone.utc) # type: ignore
+
+        if sector_id is not None:
+            q.sector_id = sector_id  # type: ignore
+
         db.add(q)
         await db.commit()
         await db.refresh(q)

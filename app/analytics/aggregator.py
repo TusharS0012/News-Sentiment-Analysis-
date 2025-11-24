@@ -1,49 +1,51 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
-from app.core.db import AsyncSessionLocal
 from app.models.news import News
 from app.models.sentiment_aggregate import SentimentAggregate
 
-async def compute_and_store_15min_aggregates():
-    """
-    Compute average sentiment per sector for the last 15-minute window,
-    and write one row per sector in sentiment_aggregates.
-    """
-    end = datetime.utcnow()
-    start = end - timedelta(minutes=15)
+WINDOW_MINUTES = 240  # For testing (4 hours)
 
-    async with AsyncSessionLocal() as db:
-        # group by sector_id
-        q = (
-            select(
-                News.sector_id,
-                func.avg(News.sentiment_score).label("avg_sentiment"),
-                func.count(News.id).label("news_count"),
-                func.avg(News.sentiment_score).label("avg_relevance")  # placeholder
-            )
-            .where(News.processed_at != None)
-            .where(News.processed_at >= start)
-            .where(News.processed_at <= end)
-            .group_by(News.sector_id)
+async def compute_and_store_15min_aggregates(db: AsyncSession):
+    print(f"\n📊 Aggregating last {WINDOW_MINUTES} minutes from DB time...")
+
+    # Use DB time instead of Python UTC time
+    q = (
+        select(
+            News.sector_id,
+            func.avg(News.sentiment_score).label("avg_sentiment"),
+            func.count(News.id).label("news_count")
         )
+        .where(News.processed_at != None)
+        .where(News.processed_at >= func.now() - timedelta(minutes=WINDOW_MINUTES))
+        .group_by(News.sector_id)
+    )
 
-        result = await db.execute(q)
-        rows = result.all()
-        for row in rows:
-            sector_id = row[0] or 0
-            avg_sentiment = float(row[1] or 0.0)
-            news_count = int(row[2] or 0)
+    result = await db.execute(q)
+    rows = result.all()
 
-            aggregate = SentimentAggregate(
-                sector_id=sector_id,
-                window_start=start,
-                window_end=end,
-                avg_sentiment=avg_sentiment,
-                news_count=news_count,
-                avg_relevance=0.0,
-                avg_price_change=0.0
-            )
-            db.add(aggregate)
-        await db.commit()
+    if not rows:
+        print("⚠ Still no matching sentiment data. Check timestamp alignment.")
+        return
+
+    for row in rows:
+        sector_id = row.sector_id or 0
+        avg_sentiment = float(row.avg_sentiment or 0.0)
+        news_count = int(row.news_count or 0)
+
+        print(f"📁 Saving aggregate → Sector {sector_id}, Avg {avg_sentiment:.2f}, Count {news_count}")
+
+        aggregate = SentimentAggregate(
+            sector_id=sector_id,
+            window_start=func.now() - timedelta(minutes=WINDOW_MINUTES),
+            window_end=func.now(),
+            avg_sentiment=avg_sentiment,
+            news_count=news_count,
+            avg_relevance=0.0,
+            avg_price_change=0.0
+        )
+        db.add(aggregate)
+
+    await db.commit()
+    print("💾 Aggregates committed to DB successfully.")

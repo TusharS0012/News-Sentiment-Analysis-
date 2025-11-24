@@ -19,10 +19,6 @@ class HFClient:
                 model=settings.HF_MODEL,
                 text=text
             )
-            print(results)
-            # results is a list of dicts sorted by score
-            # Example:
-            # [{"label": "neutral", "score": 0.83}, ...]
 
             # Pick the top result
             top = results[0]
