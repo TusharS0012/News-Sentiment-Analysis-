@@ -21,3 +21,6 @@ class News(Base):
     sentiment_score = Column(Float, nullable=True)
     sentiment_label = Column(String(32), nullable=True)
     processed_at = Column(DateTime(timezone=True), nullable=True)
+    impact_label = Column(String, nullable=True)
+    impact_confidence = Column(Float, nullable=True)
+    impact_summary = Column(Text, nullable=True)
