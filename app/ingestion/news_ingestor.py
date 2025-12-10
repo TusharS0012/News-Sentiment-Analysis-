@@ -2,7 +2,8 @@ import httpx
 import yfinance as yf
 from datetime import datetime
 from typing import Any, Dict, List
-
+import re
+from app.api.schemas import news
 from app.core.config import settings
 from app.services.news_service import NewsService
 from app.core.db import AsyncSessionLocal
@@ -32,6 +33,7 @@ class NewsIngestor:
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.get(MEDIASTACK_ENDPOINT, params=params)
             r.raise_for_status()
+            print("Fetched Mediastack news")
             return r.json().get("data", [])
 
     def normalize_mediastack(self, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -60,6 +62,7 @@ class NewsIngestor:
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.get(ALPHA_VANTAGE_ENDPOINT, params=params)
             r.raise_for_status()
+            print("Fetched AlphaVantage news")
             return r.json().get("feed", [])
 
     def normalize_alpha(self, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -95,59 +98,55 @@ class NewsIngestor:
         }
 
     # ----------- YAHOO FINANCE FETCH -------------
-    async def fetch_from_yahoo(self) -> List[Dict[str, Any]]:
+    async def fetch_from_yahoo(self) -> List[Dict[str, Any]]: 
         try:
-            news = yf.Ticker("^NSEI").news  # NSE Index for India
+            news=yf.Ticker("^NSEI").news
+            print("Fetched Yahoo news")
             return news[:10] if news else []
         except Exception:
             return []
 
     def normalize_yahoo(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        content = item.get("content") or {}
+
+        title = content.get("title")
+        summary = content.get("summary")
+
+        # Canonical URL > click-through > None
+        url = (
+            (content.get("canonicalUrl") or {}).get("url")
+            or (content.get("clickThroughUrl") or {}).get("url")
+        )
+
+        # Publish time can be ISO string or int timestamp
+        raw_time = content.get("pubDate") or item.get("providerPublishTime")
+        published_at = self.parse_dt(raw_time)
+
+        source = (content.get("provider") or {}).get("displayName")
+
+        # 🔍 Extract tickers from HTML links inside description
+        html = content.get("description") or ""
+        raw_matches = re.findall(r'quote/([A-Za-z0-9\.\-%]+)', html)
+
+        # Decode URL-encoded symbols like %5E (^)
+        tickers = [t.replace('%5E', '^').upper() for t in raw_matches]
         return {
-            "source": item.get("publisher"),
-            "title": item.get("title"),
-            "content": item.get("summary"),
-            "url": item.get("link"),
-            "published_at": self.parse_dt(item.get("providerPublishTime")),
-            "tickers": item.get("relatedTickers", []) or [],
+            "source": source,
+            "title": title,
+            "content": summary,
+            "url": url,
+            "published_at": published_at,
+            "tickers": tickers,   # 🔥 now real values instead of []
             "language": "en",
             "raw_payload": item,
         }
-
-    # ----------- COMMON DATETIME PARSER -------------
     def parse_dt(self, raw: Any):
         if not raw:
             return None
         try:
-            if isinstance(raw, int):  # Yahoo timestamp
+            # Yahoo sometimes gives a Unix timestamp or ISO string
+            if isinstance(raw, int):
                 return datetime.utcfromtimestamp(raw)
-            # ISO string from mediastack or others
             return datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
         except Exception:
             return None
-
-    # ----------- MAIN INGEST FUNCTION -------------
-    async def ingest_once(self):
-        all_articles: list[Dict[str, Any]] = []
-
-        print("\n📥 Fetching news from Mediastack, AlphaVantage, Yahoo...")
-
-        mediastack = await self.fetch_from_mediastack()
-        alpha = await self.fetch_from_alpha_vantage()
-        yahoo = await self.fetch_from_yahoo()
-
-        all_articles += [self.normalize_mediastack(a) for a in mediastack]
-        all_articles += [self.normalize_alpha(a) for a in alpha]
-        all_articles += [self.normalize_yahoo(a) for a in yahoo]
-
-        print(f"📰 Normalized {len(all_articles)} articles. Saving to DB...")
-
-        async with AsyncSessionLocal() as db:
-            for article in all_articles:
-                try:
-                    await NewsService.create(db, article)
-                except Exception as e:
-                    print("⛔ Ingest Error:", e)
-                    continue
-
-        print("✅ Ingestion batch complete.")

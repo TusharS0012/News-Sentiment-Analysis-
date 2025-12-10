@@ -1,20 +1,16 @@
-import asyncio
-from app.core.db import AsyncSessionLocal
-from app.services.sector_service import SectorService
+import yfinance as yf
+from datetime import datetime
 
-SECTORS = [
-    ("Finance", "Stocks, banks, markets, IPOs, investments"),
-    ("Technology", "AI, IT, software, cloud, electronics"),
-    ("Energy", "Oil, power, renewable energy, utilities"),
-    ("Pharma", "Medicine, biotech, healthcare, FDA"),
-    ("Automobile", "Cars, EVs, transport, Tesla"),
-]
 
-async def seed_sectors():
-    async with AsyncSessionLocal() as db:
-        for name, desc in SECTORS:
-            print(f"Adding sector: {name}")
-            await SectorService.create(db, name, desc)
-        print("Sectors added successfully!")
+def fetch_from_yahoo():
+    try:
+        news=yf.Ticker("^NSEI").news
+        print("Fetched Yahoo news")
+        return news[:3] if news else []
+    except Exception:
+        return []
+    
 
-asyncio.run(seed_sectors())
+if __name__ == "__main__":
+    news = fetch_from_yahoo()
+    print(news)    
