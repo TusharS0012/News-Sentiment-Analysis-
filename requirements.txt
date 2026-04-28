@@ -4,6 +4,7 @@ python-dotenv==1.0.1
 
 SQLAlchemy==2.0.25
 asyncpg==0.29.0
+yfinance==0.2.66
 
 pydantic==2.6.3
 pydantic-settings==2.2.1
