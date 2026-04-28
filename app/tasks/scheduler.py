@@ -9,15 +9,13 @@ from app.services.news_service import NewsService
 from app.services.news_signal_service import enrich_news_batch
 from app.services.sector_detection import detect_sector
 
-
 scheduler = AsyncIOScheduler()
-
 
 def start_scheduler():
     scheduler.add_job(
         run_ingest_and_analyze,
         "interval",
-        minutes=30,  
+        minutes=60,  
         id="ingest_job",
         next_run_time=datetime.now(timezone.utc),
         misfire_grace_time=120,
